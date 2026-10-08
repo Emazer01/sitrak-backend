@@ -15,3 +15,4 @@ router.patch('/sesi/:id/status', userController.updateStatusSesi)
 router.put('/sesi/:id/status', userController.updateStatusSesi)
 
 module.exports = router
+module.exports = router
