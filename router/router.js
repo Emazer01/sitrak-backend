@@ -14,5 +14,11 @@ router.post('/sesi', userController.tambahSesi)
 router.patch('/sesi/:id/status', userController.updateStatusSesi)
 router.put('/sesi/:id/status', userController.updateStatusSesi)
 
-module.exports = router
+// Rute untuk menyimpan hasil deteksi tembakan (SITRAK-Detect) ke sitrak-backend
+router.post('/deteksi', userController.simpanDeteksi)
+router.post('/tembakan', userController.simpanDeteksi)
+router.post('/sesi/:id/deteksi', userController.simpanDeteksi)
+router.post('/personel-babak/:id/deteksi', userController.simpanDeteksi)
+router.put('/personel-babak/:id/deteksi', userController.simpanDeteksi)
+
 module.exports = router

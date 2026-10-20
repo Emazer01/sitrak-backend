@@ -512,10 +512,43 @@ const detailSesi = async (id_sesi) => {
                     pb.created_at,
                     pp.nrp,
                     pp.nama_personel_penembak,
-                    pp.satuan
+                    pp.satuan,
+                    ft.id_foto_target,
+                    ft.url_foto_teranotasi AS foto_target,
+                    ft.url_foto_asli,
+                    ft.grouping_radius_mm,
+                    ft.center_offset_x_mm,
+                    ft.center_offset_y_mm,
+                    ft.status_analisis,
+                    ft.catatan_analisis,
+                    ft.kategori_kelulusan,
+                    ft.total_peluru_terdeteksi,
+                    COALESCE(
+                        (
+                            SELECT json_agg(
+                                json_build_object(
+                                    'id_deteksi_tembakan', ddt.id_deteksi_tembakan,
+                                    'nomor_tembakan', ddt.nomor_tembakan,
+                                    'koordinat_x', ddt.koordinat_x,
+                                    'koordinat_y', ddt.koordinat_y,
+                                    'jarak_dari_pusat_mm', ddt.jarak_dari_pusat_mm,
+                                    'skor_poin', ddt.skor_poin,
+                                    'ring_zona', ddt.ring_zona,
+                                    'confidence_score', ddt.confidence_score
+                                ) ORDER BY ddt.nomor_tembakan ASC
+                            )
+                            FROM detail_deteksi_tembakan ddt
+                            WHERE ddt.id_foto_target = ft.id_foto_target
+                        ), '[]'::json
+                    ) AS detail_tembakan
                 FROM 
                     personel_babak pb
                     LEFT JOIN personel_penembak pp ON pb.id_personel_penembak = pp.id_personel_penembak
+                    LEFT JOIN LATERAL (
+                        SELECT * FROM foto_target 
+                        WHERE id_personel_babak = pb.id_personel_babak 
+                        ORDER BY id_foto_target DESC LIMIT 1
+                    ) ft ON true
                 WHERE 
                     pb.id_babak = $1
                 ORDER BY pb.id_personel_babak ASC;`;
@@ -582,6 +615,237 @@ const updateStatusSesi = async (id_sesi, status) => {
     }
 };
 
+const simpanDeteksiTembakan = async (payload) => {
+    try {
+        let {
+            id_sesi,
+            id_personel_penembak,
+            id_babak,
+            id_personel_babak,
+            total_skor = 0,
+            akurasi_persen = 0,
+            url_foto_asli = '',
+            url_foto_teranotasi = '',
+            total_peluru_terdeteksi = 0,
+            grouping_radius_mm = null,
+            center_offset_x_mm = null,
+            center_offset_y_mm = null,
+            kategori_kelulusan = 'Cukup',
+            status_analisis = 'Selesai',
+            catatan_analisis = '',
+            shots = []
+        } = payload;
+
+        // Pastikan tabel foto_target dan detail_deteksi_tembakan telah tersedia
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS foto_target (
+                id_foto_target SERIAL PRIMARY KEY,
+                id_personel_babak INT NOT NULL,
+                url_foto_asli TEXT,
+                url_foto_teranotasi TEXT,
+                total_peluru_terdeteksi INT DEFAULT 0,
+                total_skor NUMERIC(6,2) DEFAULT 0.00,
+                akurasi_persen NUMERIC(5,2) DEFAULT 0.00,
+                grouping_radius_mm NUMERIC(8,3),
+                center_offset_x_mm NUMERIC(8,3),
+                center_offset_y_mm NUMERIC(8,3),
+                kategori_kelulusan VARCHAR(50),
+                status_analisis VARCHAR(50) DEFAULT 'Selesai',
+                catatan_analisis TEXT,
+                waktu_unggah TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                waktu_selesai_analisis TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS detail_deteksi_tembakan (
+                id_deteksi_tembakan BIGSERIAL PRIMARY KEY,
+                id_foto_target INT NOT NULL REFERENCES foto_target(id_foto_target) ON DELETE CASCADE,
+                nomor_tembakan INT NOT NULL,
+                koordinat_x NUMERIC(8,3) NOT NULL,
+                koordinat_y NUMERIC(8,3) NOT NULL,
+                jarak_dari_pusat_mm NUMERIC(8,3),
+                skor_poin NUMERIC(4,1) NOT NULL DEFAULT 0.0,
+                ring_zona VARCHAR(20),
+                confidence_score NUMERIC(5,4) DEFAULT 1.0000,
+                created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+
+        // Cari atau validasi id_personel_babak
+        if (!id_personel_babak && id_personel_penembak && id_babak) {
+            const findPb = await db.query(
+                `SELECT id_personel_babak FROM personel_babak 
+                 WHERE id_personel_penembak = $1 AND id_babak = $2 
+                 ORDER BY id_personel_babak DESC LIMIT 1`,
+                [id_personel_penembak, id_babak]
+            );
+            if (findPb.rows.length > 0) {
+                id_personel_babak = findPb.rows[0].id_personel_babak;
+            }
+        }
+
+        // Validasi kuota peluru babak: jika tembakan melebihi kuota babak, ambil tembakan terbaik
+        let targetQuota = null;
+        if (id_babak) {
+            const bRes = await db.query(`SELECT jumlah_peluru FROM babak WHERE id_babak = $1`, [id_babak]);
+            if (bRes.rows.length > 0 && bRes.rows[0].jumlah_peluru) {
+                targetQuota = parseInt(bRes.rows[0].jumlah_peluru);
+            }
+        } else if (id_personel_babak) {
+            const pbRes = await db.query(
+                `SELECT b.jumlah_peluru FROM personel_babak pb 
+                 JOIN babak b ON pb.id_babak = b.id_babak 
+                 WHERE pb.id_personel_babak = $1`,
+                [id_personel_babak]
+            );
+            if (pbRes.rows.length > 0 && pbRes.rows[0].jumlah_peluru) {
+                targetQuota = parseInt(pbRes.rows[0].jumlah_peluru);
+            }
+        }
+
+        if (targetQuota && Array.isArray(shots) && shots.length > targetQuota) {
+            // Urutkan berdasarkan tembakan terbaik: skor poin tertinggi, jarak terdekat ke pusat
+            shots = [...shots].sort((a, b) => {
+                const sA = parseFloat(a.skor_poin ?? a.poin ?? a.score ?? 0);
+                const sB = parseFloat(b.skor_poin ?? b.poin ?? b.score ?? 0);
+                if (sB !== sA) return sB - sA;
+                const dA = parseFloat(a.jarak_dari_pusat_mm ?? a.distance_from_center_mm ?? a.distance_mm ?? 9999);
+                const dB = parseFloat(b.jarak_dari_pusat_mm ?? b.distance_from_center_mm ?? b.distance_mm ?? 9999);
+                return dA - dB;
+            }).slice(0, targetQuota);
+
+            total_skor = shots.reduce((acc, s) => acc + parseFloat(s.skor_poin ?? s.poin ?? s.score ?? 0), 0);
+            const maxS = targetQuota * 10;
+            akurasi_persen = maxS > 0 ? Number(((total_skor / maxS) * 100).toFixed(1)) : 0;
+            total_peluru_terdeteksi = targetQuota;
+        }
+
+        // Jika belum ada di personel_babak, buatkan record baru
+        if (!id_personel_babak && id_personel_penembak && id_babak) {
+            const createPb = await db.query(
+                `INSERT INTO personel_babak (id_personel_penembak, id_babak, total_skor, akurasi_persen)
+                 VALUES ($1, $2, $3, $4) RETURNING id_personel_babak`,
+                [id_personel_penembak, id_babak, total_skor, akurasi_persen]
+            );
+            id_personel_babak = createPb.rows[0].id_personel_babak;
+        } else if (id_personel_babak) {
+            // Update skor dan akurasi di tabel personel_babak
+            await db.query(
+                `UPDATE personel_babak 
+                 SET total_skor = $1, akurasi_persen = $2 
+                 WHERE id_personel_babak = $3`,
+                [total_skor, akurasi_persen, id_personel_babak]
+            );
+        }
+
+        if (!id_personel_babak) {
+            return {
+                code: 400,
+                message: "Gagal menyimpan data: id_personel_babak atau pasangan personel & babak tidak valid"
+            };
+        }
+
+        // Simpan data foto target & analisis deteksi
+        const insertFotoQuery = `
+            INSERT INTO foto_target (
+                id_personel_babak,
+                url_foto_asli,
+                url_foto_teranotasi,
+                total_peluru_terdeteksi,
+                total_skor,
+                akurasi_persen,
+                grouping_radius_mm,
+                center_offset_x_mm,
+                center_offset_y_mm,
+                kategori_kelulusan,
+                status_analisis,
+                catatan_analisis,
+                waktu_selesai_analisis
+            ) VALUES (
+                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, CURRENT_TIMESTAMP
+            ) RETURNING *;
+        `;
+        const resFoto = await db.query(insertFotoQuery, [
+            id_personel_babak,
+            url_foto_asli || '',
+            url_foto_teranotasi || '',
+            total_peluru_terdeteksi || (Array.isArray(shots) ? shots.length : 0),
+            total_skor,
+            akurasi_persen,
+            grouping_radius_mm,
+            center_offset_x_mm,
+            center_offset_y_mm,
+            kategori_kelulusan || 'Cukup',
+            status_analisis || 'Selesai',
+            catatan_analisis || ''
+        ]);
+
+        const savedFoto = resFoto.rows[0];
+        const id_foto_target = savedFoto.id_foto_target;
+        const savedShots = [];
+
+        // Simpan rincian setiap perkenaan tembakan ke detail_deteksi_tembakan
+        if (Array.isArray(shots) && shots.length > 0) {
+            for (let i = 0; i < shots.length; i++) {
+                const s = shots[i];
+                const shotNo = s.nomor_tembakan || s.nomor || (i + 1);
+                const x = parseFloat(s.koordinat_x ?? s.x ?? 0);
+                const y = parseFloat(s.koordinat_y ?? s.y ?? 0);
+                const dist = s.jarak_dari_pusat_mm !== undefined
+                    ? parseFloat(s.jarak_dari_pusat_mm)
+                    : (s.distance_from_center_mm !== undefined ? parseFloat(s.distance_from_center_mm) : null);
+                const poin = parseFloat(s.skor_poin ?? s.poin ?? s.score ?? 0);
+                const ring = String(s.ring_zona ?? s.ring ?? '');
+                const conf = parseFloat(s.confidence_score ?? s.confidence ?? 1.0);
+
+                const insertShotQuery = `
+                    INSERT INTO detail_deteksi_tembakan (
+                        id_foto_target,
+                        nomor_tembakan,
+                        koordinat_x,
+                        koordinat_y,
+                        jarak_dari_pusat_mm,
+                        skor_poin,
+                        ring_zona,
+                        confidence_score
+                    ) VALUES (
+                        $1, $2, $3, $4, $5, $6, $7, $8
+                    ) RETURNING *;
+                `;
+                const resShot = await db.query(insertShotQuery, [
+                    id_foto_target,
+                    shotNo,
+                    x,
+                    y,
+                    dist,
+                    poin,
+                    ring,
+                    conf
+                ]);
+                savedShots.push(resShot.rows[0]);
+            }
+        }
+
+        return {
+            code: 200,
+            message: {
+                status: "success",
+                message: "Data tembakan hasil deteksi berhasil disimpan ke database SITRAK",
+                id_personel_babak,
+                foto_target: savedFoto,
+                detail_tembakan: savedShots
+            }
+        };
+    } catch (error) {
+        console.error("Gagal simpanDeteksiTembakan:", error);
+        return {
+            code: 500,
+            message: error.message || "Gagal menyimpan data tembakan ke database"
+        };
+    }
+};
+
 module.exports = {
     jenisSenjata,
     modeTembakan,
@@ -597,5 +861,6 @@ module.exports = {
     daftarSesi,
     sesi: daftarSesi,
     detailSesi,
-    updateStatusSesi
+    updateStatusSesi,
+    simpanDeteksiTembakan
 }

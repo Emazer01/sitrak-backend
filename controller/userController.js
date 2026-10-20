@@ -293,6 +293,21 @@ const updateStatusSesi = async (req, res, next) => {
     }
 }
 
+const simpanDeteksi = async (req, res, next) => {
+    try {
+        const payload = {
+            ...req.body,
+            id_sesi: req.params.id || req.body.id_sesi,
+            id_personel_babak: req.params.id_personel_babak || req.body.id_personel_babak
+        };
+        const result = await Services.simpanDeteksiTembakan(payload);
+        res.status(result.code).send(result.message);
+    } catch (error) {
+        console.error("Error pada simpanDeteksi controller:", error);
+        return res.status(500).send("Gangguan server saat menyimpan data deteksi");
+    }
+};
+
 module.exports = {
     atribut,
     personelPenembak,
@@ -302,5 +317,6 @@ module.exports = {
     daftarSesi,
     sesi: daftarSesi,
     detailSesi,
-    updateStatusSesi
+    updateStatusSesi,
+    simpanDeteksi
 }
