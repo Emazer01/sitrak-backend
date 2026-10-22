@@ -5,6 +5,7 @@ const userRouter = require('./router')
 require('dotenv').config()
 const db = require('./db.config/db.config.js')
 const cors = require('cors')
+const logger = require('./middleware/logger')
 
 db.connect((err) => {
   if (err) {
@@ -16,6 +17,7 @@ db.connect((err) => {
 
 app.use(cors())
 app.use(express.json({ limit: "10mb", extended: true }))
+app.use(logger)
 
 app.use('/', userRouter)
 app.get('/', async (req, res) => {

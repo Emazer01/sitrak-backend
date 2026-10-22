@@ -9,13 +9,6 @@ const atribut = async (req, res, next) => {
         var sikapMenembak = await Services.sikapMenembak()
         var tipeTarget = await Services.tipeTarget()
         var senjata = await Services.senjata()
-        console.log({
-            jenis_senjata: jenisSenjata.message,
-            mode_tembakan: modeTembakan.message,
-            sikap_menembak: sikapMenembak.message,
-            tipe_target: tipeTarget.message,
-            senjata: senjata.message
-        })
         res.status(200).send({
             jenis_senjata: jenisSenjata.message,
             mode_tembakan: modeTembakan.message,

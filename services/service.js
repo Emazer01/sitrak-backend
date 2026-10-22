@@ -12,7 +12,6 @@ const jenisSenjata = async () => {
             jenis_senjata 
         ORDER BY id_jenis_senjata ASC`
         const result = await db.query(query)
-        console.log(result)
         return ({
             code: 200,
             message: result.rows
@@ -32,7 +31,6 @@ const modeTembakan = async () => {
             mode_tembakan 
         ORDER BY id_mode_tembakan ASC`
         const result = await db.query(query)
-        console.log(result)
         return ({
             code: 200,
             message: result.rows
@@ -52,7 +50,6 @@ const sikapMenembak = async () => {
             sikap_menembak 
         ORDER BY id_sikap_menembak ASC`
         const result = await db.query(query)
-        console.log(result)
         return ({
             code: 200,
             message: result.rows
@@ -72,7 +69,6 @@ const tipeTarget = async () => {
             tipe_target 
         ORDER BY id_tipe_target ASC`
         const result = await db.query(query)
-        console.log(result)
         return ({
             code: 200,
             message: result.rows
@@ -94,7 +90,6 @@ const senjata = async () => {
             LEFT JOIN jenis_senjata AS js ON s.id_jenis_senjata = js.id_jenis_senjata
         ORDER BY s.id_senjata ASC`
         const result = await db.query(query)
-        console.log(result)
         return ({
             code: 200,
             message: result.rows
@@ -129,7 +124,6 @@ const personelPenembak = async (page = 1, limit = 10, search = '') => {
         const totalRows = parseInt(totalResult.rows[0].count)
 
         const result = await db.query(query, queryParams)
-        console.log(result)
         return ({
             code: 200,
             message: {
@@ -421,7 +415,6 @@ const daftarSesi = async (page = 1, limit = 10, search = '', status = '') => {
         const totalRows = parseInt(totalResult.rows[0].count)
 
         const result = await db.query(query, queryParams)
-        console.log(result)
         return ({
             code: 200,
             message: {
@@ -567,7 +560,6 @@ const detailSesi = async (id_sesi) => {
         }
 
         dataSesi.gelombang = gelombangList;
-        console.log(dataSesi);
 
         return ({
             code: 200,
