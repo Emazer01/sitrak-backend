@@ -7,6 +7,42 @@ const { Validation } = require('../validators')
 router.get('/atribut', userController.atribut)
 router.get('/personel', userController.personelPenembak)
 
+// Master Data CRUD Routes (Personel, Senjata, Jenis Senjata, Tipe Target, Mode Tembakan, Sikap Menembak)
+router.post('/personel', userController.tambahPersonel)
+router.delete('/personel/:id', userController.hapusPersonel)
+router.delete('/personel', userController.hapusPersonel)
+
+router.post('/senjata', userController.tambahSenjata)
+router.delete('/senjata/:id', userController.hapusSenjata)
+router.delete('/senjata', userController.hapusSenjata)
+
+router.post('/jenis-senjata', userController.tambahJenisSenjata)
+router.post('/jenis_senjata', userController.tambahJenisSenjata)
+router.delete('/jenis-senjata/:id', userController.hapusJenisSenjata)
+router.delete('/jenis_senjata/:id', userController.hapusJenisSenjata)
+
+router.post('/tipe-target', userController.tambahTipeTarget)
+router.post('/tipe_target', userController.tambahTipeTarget)
+router.delete('/tipe-target/:id', userController.hapusTipeTarget)
+router.delete('/tipe_target/:id', userController.hapusTipeTarget)
+
+router.post('/mode-tembakan', userController.tambahModeTembakan)
+router.post('/mode_tembakan', userController.tambahModeTembakan)
+router.delete('/mode-tembakan/:id', userController.hapusModeTembakan)
+router.delete('/mode_tembakan/:id', userController.hapusModeTembakan)
+
+router.post('/sikap-menembak', userController.tambahSikapMenembak)
+router.post('/sikap_menembak', userController.tambahSikapMenembak)
+router.delete('/sikap-menembak/:id', userController.hapusSikapMenembak)
+router.delete('/sikap_menembak/:id', userController.hapusSikapMenembak)
+
+// Dukungan alias dengan prefix /atribut/...
+router.post('/atribut/senjata', userController.tambahSenjata)
+router.post('/atribut/jenis-senjata', userController.tambahJenisSenjata)
+router.post('/atribut/tipe-target', userController.tambahTipeTarget)
+router.post('/atribut/mode-tembakan', userController.tambahModeTembakan)
+router.post('/atribut/sikap-menembak', userController.tambahSikapMenembak)
+
 router.get('/sesi', userController.daftarSesi)
 router.get('/sesi/detail', userController.detailSesi)
 router.get('/sesi/:id', userController.detailSesi)

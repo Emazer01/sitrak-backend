@@ -301,6 +301,136 @@ const simpanDeteksi = async (req, res, next) => {
     }
 };
 
+// ==========================================
+// CONTROLLER MASTER DATA PARAMETER
+// ==========================================
+
+const tambahPersonel = async (req, res, next) => {
+    try {
+        const result = await Services.tambahPersonel(req.body);
+        res.status(result.code).send(result.message);
+    } catch (error) {
+        console.error("Error tambahPersonel controller:", error);
+        return res.status(500).send("Gangguan server saat menambah personel");
+    }
+};
+
+const hapusPersonel = async (req, res, next) => {
+    try {
+        const id = req.params.id || req.body.id_personel_penembak;
+        const result = await Services.hapusPersonel(id);
+        res.status(result.code).send(result.message);
+    } catch (error) {
+        console.error("Error hapusPersonel controller:", error);
+        return res.status(500).send("Gangguan server saat menghapus personel");
+    }
+};
+
+const tambahSenjata = async (req, res, next) => {
+    try {
+        const result = await Services.tambahSenjata(req.body);
+        res.status(result.code).send(result.message);
+    } catch (error) {
+        console.error("Error tambahSenjata controller:", error);
+        return res.status(500).send("Gangguan server saat menambah senjata");
+    }
+};
+
+const hapusSenjata = async (req, res, next) => {
+    try {
+        const id = req.params.id || req.body.id_senjata;
+        const result = await Services.hapusSenjata(id);
+        res.status(result.code).send(result.message);
+    } catch (error) {
+        console.error("Error hapusSenjata controller:", error);
+        return res.status(500).send("Gangguan server saat menghapus senjata");
+    }
+};
+
+const tambahJenisSenjata = async (req, res, next) => {
+    try {
+        const result = await Services.tambahJenisSenjata(req.body);
+        res.status(result.code).send(result.message);
+    } catch (error) {
+        console.error("Error tambahJenisSenjata controller:", error);
+        return res.status(500).send("Gangguan server saat menambah jenis senjata");
+    }
+};
+
+const hapusJenisSenjata = async (req, res, next) => {
+    try {
+        const id = req.params.id || req.body.id_jenis_senjata;
+        const result = await Services.hapusJenisSenjata(id);
+        res.status(result.code).send(result.message);
+    } catch (error) {
+        console.error("Error hapusJenisSenjata controller:", error);
+        return res.status(500).send("Gangguan server saat menghapus jenis senjata");
+    }
+};
+
+const tambahTipeTarget = async (req, res, next) => {
+    try {
+        const result = await Services.tambahTipeTarget(req.body);
+        res.status(result.code).send(result.message);
+    } catch (error) {
+        console.error("Error tambahTipeTarget controller:", error);
+        return res.status(500).send("Gangguan server saat menambah tipe target");
+    }
+};
+
+const hapusTipeTarget = async (req, res, next) => {
+    try {
+        const id = req.params.id || req.body.id_tipe_target;
+        const result = await Services.hapusTipeTarget(id);
+        res.status(result.code).send(result.message);
+    } catch (error) {
+        console.error("Error hapusTipeTarget controller:", error);
+        return res.status(500).send("Gangguan server saat menghapus tipe target");
+    }
+};
+
+const tambahModeTembakan = async (req, res, next) => {
+    try {
+        const result = await Services.tambahModeTembakan(req.body);
+        res.status(result.code).send(result.message);
+    } catch (error) {
+        console.error("Error tambahModeTembakan controller:", error);
+        return res.status(500).send("Gangguan server saat menambah mode tembakan");
+    }
+};
+
+const hapusModeTembakan = async (req, res, next) => {
+    try {
+        const id = req.params.id || req.body.id_mode_tembakan;
+        const result = await Services.hapusModeTembakan(id);
+        res.status(result.code).send(result.message);
+    } catch (error) {
+        console.error("Error hapusModeTembakan controller:", error);
+        return res.status(500).send("Gangguan server saat menghapus mode tembakan");
+    }
+};
+
+const tambahSikapMenembak = async (req, res, next) => {
+    try {
+        const result = await Services.tambahSikapMenembak(req.body);
+        res.status(result.code).send(result.message);
+    } catch (error) {
+        console.error("Error tambahSikapMenembak controller:", error);
+        return res.status(500).send("Gangguan server saat menambah sikap menembak");
+    }
+};
+
+const hapusSikapMenembak = async (req, res, next) => {
+    try {
+        const id = req.params.id || req.body.id_sikap_menembak;
+        const result = await Services.hapusSikapMenembak(id);
+        res.status(result.code).send(result.message);
+    } catch (error) {
+        console.error("Error hapusSikapMenembak controller:", error);
+        return res.status(500).send("Gangguan server saat menghapus sikap menembak");
+    }
+};
+
 module.exports = {
     atribut,
     personelPenembak,
@@ -311,5 +441,18 @@ module.exports = {
     sesi: daftarSesi,
     detailSesi,
     updateStatusSesi,
-    simpanDeteksi
+    simpanDeteksi,
+    // Master data methods
+    tambahPersonel,
+    hapusPersonel,
+    tambahSenjata,
+    hapusSenjata,
+    tambahJenisSenjata,
+    hapusJenisSenjata,
+    tambahTipeTarget,
+    hapusTipeTarget,
+    tambahModeTembakan,
+    hapusModeTembakan,
+    tambahSikapMenembak,
+    hapusSikapMenembak
 }

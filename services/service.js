@@ -838,6 +838,239 @@ const simpanDeteksiTembakan = async (payload) => {
     }
 };
 
+// ==========================================
+// CRUD MASTER DATA & PARAMETER SITRAK
+// ==========================================
+
+const tambahPersonel = async (data) => {
+    try {
+        const nrp = String(data.nrp || '').trim();
+        const nama = String(data.nama_personel_penembak || data.nama || '').trim();
+        const satuan = String(data.satuan || '-').trim();
+
+        if (!nrp || !nama) {
+            return { code: 400, message: "NRP dan Nama Personel wajib diisi" };
+        }
+
+        const query = `
+            INSERT INTO personel_penembak (nrp, nama_personel_penembak, satuan)
+            VALUES ($1, $2, $3)
+            RETURNING *;
+        `;
+        const result = await db.query(query, [nrp, nama, satuan]);
+        return {
+            code: 201,
+            message: result.rows[0]
+        };
+    } catch (error) {
+        console.error("Error tambahPersonel:", error);
+        return { code: 500, message: error.message };
+    }
+};
+
+const hapusPersonel = async (id) => {
+    try {
+        const query = `DELETE FROM personel_penembak WHERE id_personel_penembak = $1 RETURNING *;`;
+        const result = await db.query(query, [id]);
+        if (result.rowCount === 0) {
+            return { code: 404, message: "Personel tidak ditemukan" };
+        }
+        return { code: 200, message: { status: "success", message: "Personel berhasil dihapus", deleted: result.rows[0] } };
+    } catch (error) {
+        console.error("Error hapusPersonel:", error);
+        return { code: 500, message: error.message };
+    }
+};
+
+const tambahSenjata = async (data) => {
+    try {
+        const model = String(data.model_senjata || data.model || '').trim();
+        const idJenis = parseInt(data.id_jenis_senjata || data.jenis) || 1;
+        const kaliber = String(data.kaliber || '9 x 19 mm').trim();
+        const pabrikan = String(data.pabrikan || 'PT Pindad').trim();
+
+        if (!model) {
+            return { code: 400, message: "Model senjata wajib diisi" };
+        }
+
+        const query = `
+            INSERT INTO senjata (model_senjata, id_jenis_senjata, kaliber, pabrikan)
+            VALUES ($1, $2, $3, $4)
+            RETURNING *;
+        `;
+        const result = await db.query(query, [model, idJenis, kaliber, pabrikan]);
+        return {
+            code: 201,
+            message: result.rows[0]
+        };
+    } catch (error) {
+        console.error("Error tambahSenjata:", error);
+        return { code: 500, message: error.message };
+    }
+};
+
+const hapusSenjata = async (id) => {
+    try {
+        const query = `DELETE FROM senjata WHERE id_senjata = $1 RETURNING *;`;
+        const result = await db.query(query, [id]);
+        if (result.rowCount === 0) {
+            return { code: 404, message: "Senjata tidak ditemukan" };
+        }
+        return { code: 200, message: { status: "success", message: "Senjata berhasil dihapus", deleted: result.rows[0] } };
+    } catch (error) {
+        console.error("Error hapusSenjata:", error);
+        return { code: 500, message: error.message };
+    }
+};
+
+const tambahJenisSenjata = async (data) => {
+    try {
+        const nama = String(data.nama_jenis_senjata || data.nama || '').trim();
+        if (!nama) {
+            return { code: 400, message: "Nama jenis senjata wajib diisi" };
+        }
+
+        const query = `
+            INSERT INTO jenis_senjata (nama_jenis_senjata)
+            VALUES ($1)
+            RETURNING *;
+        `;
+        const result = await db.query(query, [nama]);
+        return {
+            code: 201,
+            message: result.rows[0]
+        };
+    } catch (error) {
+        console.error("Error tambahJenisSenjata:", error);
+        return { code: 500, message: error.message };
+    }
+};
+
+const hapusJenisSenjata = async (id) => {
+    try {
+        const query = `DELETE FROM jenis_senjata WHERE id_jenis_senjata = $1 RETURNING *;`;
+        const result = await db.query(query, [id]);
+        if (result.rowCount === 0) {
+            return { code: 404, message: "Jenis senjata tidak ditemukan" };
+        }
+        return { code: 200, message: { status: "success", message: "Jenis senjata berhasil dihapus", deleted: result.rows[0] } };
+    } catch (error) {
+        console.error("Error hapusJenisSenjata:", error);
+        return { code: 500, message: error.message };
+    }
+};
+
+const tambahTipeTarget = async (data) => {
+    try {
+        const nama = String(data.nama_tipe_target || data.nama || '').trim();
+        if (!nama) {
+            return { code: 400, message: "Nama tipe target wajib diisi" };
+        }
+
+        const query = `
+            INSERT INTO tipe_target (nama_tipe_target)
+            VALUES ($1)
+            RETURNING *;
+        `;
+        const result = await db.query(query, [nama]);
+        return {
+            code: 201,
+            message: result.rows[0]
+        };
+    } catch (error) {
+        console.error("Error tambahTipeTarget:", error);
+        return { code: 500, message: error.message };
+    }
+};
+
+const hapusTipeTarget = async (id) => {
+    try {
+        const query = `DELETE FROM tipe_target WHERE id_tipe_target = $1 RETURNING *;`;
+        const result = await db.query(query, [id]);
+        if (result.rowCount === 0) {
+            return { code: 404, message: "Tipe target tidak ditemukan" };
+        }
+        return { code: 200, message: { status: "success", message: "Tipe target berhasil dihapus", deleted: result.rows[0] } };
+    } catch (error) {
+        console.error("Error hapusTipeTarget:", error);
+        return { code: 500, message: error.message };
+    }
+};
+
+const tambahModeTembakan = async (data) => {
+    try {
+        const nama = String(data.nama_mode_tembakan || data.nama || '').trim();
+        if (!nama) {
+            return { code: 400, message: "Nama mode tembakan wajib diisi" };
+        }
+
+        const query = `
+            INSERT INTO mode_tembakan (nama_mode_tembakan)
+            VALUES ($1)
+            RETURNING *;
+        `;
+        const result = await db.query(query, [nama]);
+        return {
+            code: 201,
+            message: result.rows[0]
+        };
+    } catch (error) {
+        console.error("Error tambahModeTembakan:", error);
+        return { code: 500, message: error.message };
+    }
+};
+
+const hapusModeTembakan = async (id) => {
+    try {
+        const query = `DELETE FROM mode_tembakan WHERE id_mode_tembakan = $1 RETURNING *;`;
+        const result = await db.query(query, [id]);
+        if (result.rowCount === 0) {
+            return { code: 404, message: "Mode tembakan tidak ditemukan" };
+        }
+        return { code: 200, message: { status: "success", message: "Mode tembakan berhasil dihapus", deleted: result.rows[0] } };
+    } catch (error) {
+        console.error("Error hapusModeTembakan:", error);
+        return { code: 500, message: error.message };
+    }
+};
+
+const tambahSikapMenembak = async (data) => {
+    try {
+        const nama = String(data.nama_sikap_menembak || data.nama || '').trim();
+        if (!nama) {
+            return { code: 400, message: "Nama sikap menembak wajib diisi" };
+        }
+
+        const query = `
+            INSERT INTO sikap_menembak (nama_sikap_menembak)
+            VALUES ($1)
+            RETURNING *;
+        `;
+        const result = await db.query(query, [nama]);
+        return {
+            code: 201,
+            message: result.rows[0]
+        };
+    } catch (error) {
+        console.error("Error tambahSikapMenembak:", error);
+        return { code: 500, message: error.message };
+    }
+};
+
+const hapusSikapMenembak = async (id) => {
+    try {
+        const query = `DELETE FROM sikap_menembak WHERE id_sikap_menembak = $1 RETURNING *;`;
+        const result = await db.query(query, [id]);
+        if (result.rowCount === 0) {
+            return { code: 404, message: "Sikap menembak tidak ditemukan" };
+        }
+        return { code: 200, message: { status: "success", message: "Sikap menembak berhasil dihapus", deleted: result.rows[0] } };
+    } catch (error) {
+        console.error("Error hapusSikapMenembak:", error);
+        return { code: 500, message: error.message };
+    }
+};
+
 module.exports = {
     jenisSenjata,
     modeTembakan,
@@ -854,5 +1087,18 @@ module.exports = {
     sesi: daftarSesi,
     detailSesi,
     updateStatusSesi,
-    simpanDeteksiTembakan
+    simpanDeteksiTembakan,
+    // Master data methods
+    tambahPersonel,
+    hapusPersonel,
+    tambahSenjata,
+    hapusSenjata,
+    tambahJenisSenjata,
+    hapusJenisSenjata,
+    tambahTipeTarget,
+    hapusTipeTarget,
+    tambahModeTembakan,
+    hapusModeTembakan,
+    tambahSikapMenembak,
+    hapusSikapMenembak
 }
