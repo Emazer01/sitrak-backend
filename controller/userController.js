@@ -307,11 +307,25 @@ const simpanDeteksi = async (req, res, next) => {
 
 const tambahPersonel = async (req, res, next) => {
     try {
+        if (Array.isArray(req.body) || (req.body && (Array.isArray(req.body.personel) || Array.isArray(req.body.data)))) {
+            const result = await Services.bulkTambahPersonel(req.body);
+            return res.status(result.code).send(result.message);
+        }
         const result = await Services.tambahPersonel(req.body);
         res.status(result.code).send(result.message);
     } catch (error) {
         console.error("Error tambahPersonel controller:", error);
         return res.status(500).send("Gangguan server saat menambah personel");
+    }
+};
+
+const bulkTambahPersonel = async (req, res, next) => {
+    try {
+        const result = await Services.bulkTambahPersonel(req.body);
+        res.status(result.code).send(result.message);
+    } catch (error) {
+        console.error("Error bulkTambahPersonel controller:", error);
+        return res.status(500).send("Gangguan server saat bulk insert personel");
     }
 };
 
@@ -431,6 +445,98 @@ const hapusSikapMenembak = async (req, res, next) => {
     }
 };
 
+// ==========================================
+// CONTROLLER AUTENTIKASI LOGIN & MANAJEMEN USERS
+// ==========================================
+
+const login = async (req, res, next) => {
+    try {
+        const { username, password } = req.body || {};
+        const result = await Services.loginUser(username, password);
+        return res.status(result.code).json(result.message);
+    } catch (error) {
+        console.error("Error login controller:", error);
+        return res.status(500).json({
+            status: "error",
+            message: "Gangguan server saat memproses login"
+        });
+    }
+};
+
+const me = async (req, res, next) => {
+    try {
+        const id_user = req.user && req.user.id_user;
+        if (!id_user) {
+            return res.status(401).json({
+                status: "error",
+                message: "Token sesi tidak valid"
+            });
+        }
+        const result = await Services.getProfileUser(id_user);
+        return res.status(result.code).json(result.message);
+    } catch (error) {
+        console.error("Error me controller:", error);
+        return res.status(500).json({
+            status: "error",
+            message: "Gangguan server saat mengambil profil pengguna"
+        });
+    }
+};
+
+const daftarUsers = async (req, res, next) => {
+    try {
+        const result = await Services.daftarUsers();
+        return res.status(result.code).json(result.message);
+    } catch (error) {
+        console.error("Error daftarUsers controller:", error);
+        return res.status(500).json({
+            status: "error",
+            message: "Gangguan server saat mengambil daftar akun"
+        });
+    }
+};
+
+const tambahUser = async (req, res, next) => {
+    try {
+        const result = await Services.tambahUser(req.body || {});
+        return res.status(result.code).json(result.message);
+    } catch (error) {
+        console.error("Error tambahUser controller:", error);
+        return res.status(500).json({
+            status: "error",
+            message: "Gangguan server saat menambahkan akun baru"
+        });
+    }
+};
+
+const updateUser = async (req, res, next) => {
+    try {
+        const id = req.params.id || req.body.id_user || req.body.id;
+        const result = await Services.updateUser(id, req.body || {});
+        return res.status(result.code).json(result.message);
+    } catch (error) {
+        console.error("Error updateUser controller:", error);
+        return res.status(500).json({
+            status: "error",
+            message: "Gangguan server saat memperbarui akun"
+        });
+    }
+};
+
+const hapusUser = async (req, res, next) => {
+    try {
+        const id = req.params.id || req.body.id_user || req.body.id;
+        const result = await Services.hapusUser(id);
+        return res.status(result.code).json(result.message);
+    } catch (error) {
+        console.error("Error hapusUser controller:", error);
+        return res.status(500).json({
+            status: "error",
+            message: "Gangguan server saat menghapus akun"
+        });
+    }
+};
+
 module.exports = {
     atribut,
     personelPenembak,
@@ -444,6 +550,7 @@ module.exports = {
     simpanDeteksi,
     // Master data methods
     tambahPersonel,
+    bulkTambahPersonel,
     hapusPersonel,
     tambahSenjata,
     hapusSenjata,
@@ -454,5 +561,12 @@ module.exports = {
     tambahModeTembakan,
     hapusModeTembakan,
     tambahSikapMenembak,
-    hapusSikapMenembak
+    hapusSikapMenembak,
+    // Auth & Users methods
+    login,
+    me,
+    daftarUsers,
+    tambahUser,
+    updateUser,
+    hapusUser
 }

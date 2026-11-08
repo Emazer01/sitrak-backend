@@ -5,26 +5,51 @@ const Auth = {
   verifyToken(req, res, next) {
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1];
-    if (token == null) return res.status(401).send("A token is required for authentication");
+    if (!token) {
+      return res.status(401).json({
+        status: "error",
+        message: "Token autentikasi diperlukan. Silakan login terlebih dahulu."
+      });
+    }
     jwt.verify(token, process.env.SECRET, (err, user) => {
       if (err) {
-        return res.status(403).send('Youre not authenticated, please login first')
-        console.log('Youre not authenticated');
+        return res.status(403).json({
+          status: "error",
+          message: "Sesi login tidak valid atau telah berakhir. Silakan login kembali."
+        });
       }
-      req.user = user
-      console.log(`${req.route.path} - ${req.user.username} doing Token Verification`)
-      next()
-    })
+      req.user = user;
+      next();
+    });
   },
+
   verifyAdmin(req, res, next) {
-    if (req.user.role_id == 1) {
-      console.log(`${req.route.path} - ${req.user.username} doing Admin Verification`)
-      next()
+    if (req.user && (req.user.role === 'administrator' || req.user.role_id == 1)) {
+      return next();
     }
-    else {
-      res.status(401).send("You're not authorized")
-    }
+    return res.status(403).json({
+      status: "error",
+      message: "Akses ditolak: Hanya Administrator yang memiliki kewenangan ini."
+    });
+  },
+
+  requireRoles(...allowedRoles) {
+    return (req, res, next) => {
+      if (!req.user || !req.user.role) {
+        return res.status(401).json({
+          status: "error",
+          message: "Autentikasi diperlukan."
+        });
+      }
+      if (!allowedRoles.includes(req.user.role)) {
+        return res.status(403).json({
+          status: "error",
+          message: `Akses ditolak: Role "${req.user.role}" tidak memiliki wewenang untuk aksi ini.`
+        });
+      }
+      next();
+    };
   }
-}
+};
 
 module.exports = Auth;

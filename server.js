@@ -1,18 +1,24 @@
 const express = require('express')
 const app = express()
-const jwt = require('jsonwebtoken')
 const userRouter = require('./router')
 require('dotenv').config()
 const db = require('./db.config/db.config.js')
 const cors = require('cors')
 const logger = require('./middleware/logger')
+const { Services } = require('./services')
 
-db.connect((err) => {
+db.connect(async (err) => {
   if (err) {
     console.error(err);
     return;
   }
   console.log('Database Connected');
+  try {
+    await Services.initUsersTable();
+    console.log('Tabel users PostgreSQL & 3 akun role siap');
+  } catch (initErr) {
+    console.error('Gagal menginisialisasi tabel users:', initErr);
+  }
 });
 
 app.use(cors())
@@ -24,18 +30,9 @@ app.get('/', async (req, res) => {
   try {
     res.send(`Welcome Page`);
   } catch (error) {
-    console.log(error);;
+    console.log(error);
   }
 });
 
-PORT = process.env.PORT || 900
+const PORT = process.env.PORT || 900
 app.listen(PORT, () => { console.log(`Application is running on ${PORT}!! `) })
-
-const bcrypt = require('bcryptjs');
-const bikinPw = async () => {
-  const hash = await bcrypt.hash('AdminMenkor1.', 10)
-  console.log(hash)
-}
-
-bikinPw()
-

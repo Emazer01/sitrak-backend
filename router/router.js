@@ -4,10 +4,33 @@ const { userController } = require('../controller')
 const Auth = require('../middleware/auth')
 const { Validation } = require('../validators')
 
+// ==========================================
+// RUTE AUTENTIKASI LOGIN & MANAJEMEN AKUN (POSTGRESQL)
+// ==========================================
+router.post('/auth/login', userController.login)
+router.post('/login', userController.login)
+router.get('/auth/me', Auth.verifyToken, userController.me)
+router.get('/me', Auth.verifyToken, userController.me)
+
+router.get('/users', userController.daftarUsers)
+router.get('/auth/users', userController.daftarUsers)
+router.post('/users', userController.tambahUser)
+router.post('/auth/users', userController.tambahUser)
+router.post('/auth/register', userController.tambahUser)
+router.put('/users/:id', userController.updateUser)
+router.patch('/users/:id', userController.updateUser)
+router.delete('/users/:id', userController.hapusUser)
+router.delete('/auth/users/:id', userController.hapusUser)
+
+// ==========================================
+// RUTE ATRIBUT & MASTER DATA
+// ==========================================
 router.get('/atribut', userController.atribut)
 router.get('/personel', userController.personelPenembak)
 
 // Master Data CRUD Routes (Personel, Senjata, Jenis Senjata, Tipe Target, Mode Tembakan, Sikap Menembak)
+router.post('/personel/bulk', userController.bulkTambahPersonel)
+router.post('/personel/import', userController.bulkTambahPersonel)
 router.post('/personel', userController.tambahPersonel)
 router.delete('/personel/:id', userController.hapusPersonel)
 router.delete('/personel', userController.hapusPersonel)
@@ -43,6 +66,9 @@ router.post('/atribut/tipe-target', userController.tambahTipeTarget)
 router.post('/atribut/mode-tembakan', userController.tambahModeTembakan)
 router.post('/atribut/sikap-menembak', userController.tambahSikapMenembak)
 
+// ==========================================
+// RUTE SESI LATIHAN & DETEKSI TEMBAKAN
+// ==========================================
 router.get('/sesi', userController.daftarSesi)
 router.get('/sesi/detail', userController.detailSesi)
 router.get('/sesi/:id', userController.detailSesi)

@@ -868,6 +868,113 @@ const tambahPersonel = async (data) => {
     }
 };
 
+const bulkTambahPersonel = async (dataList) => {
+    try {
+        let items = [];
+        if (Array.isArray(dataList)) {
+            items = dataList;
+        } else if (dataList && Array.isArray(dataList.personel)) {
+            items = dataList.personel;
+        } else if (dataList && Array.isArray(dataList.data)) {
+            items = dataList.data;
+        }
+
+        if (!items || items.length === 0) {
+            return { code: 400, message: "Daftar data personel kosong atau tidak valid" };
+        }
+
+        const inserted = [];
+        const updated = [];
+        const failed = [];
+
+        for (let i = 0; i < items.length; i++) {
+            const item = items[i];
+            const nrp = String(item.nrp || item.NRP || '').trim();
+            const nama = String(
+                item.nama_personel_penembak ||
+                item.nama ||
+                item.Nama ||
+                item['Nama Lengkap'] ||
+                item['NAMA LENGKAP'] ||
+                item['Nama Personel'] ||
+                item.nama_lengkap ||
+                ''
+            ).trim();
+            const satuan = String(
+                item.satuan ||
+                item.Satuan ||
+                item.SATUAN ||
+                item.unit ||
+                item.Unit ||
+                '-'
+            ).trim() || '-';
+
+            if (!nrp || !nama) {
+                failed.push({
+                    baris: i + 1,
+                    nrp: nrp || '(kosong)',
+                    nama: nama || '(kosong)',
+                    alasan: 'NRP atau Nama tidak boleh kosong'
+                });
+                continue;
+            }
+
+            try {
+                // Periksa apakah personel dengan NRP ini sudah ada
+                const checkRes = await db.query(
+                    'SELECT id_personel_penembak FROM personel_penembak WHERE nrp = $1',
+                    [nrp]
+                );
+
+                if (checkRes.rows && checkRes.rows.length > 0) {
+                    const updateQuery = `
+                        UPDATE personel_penembak 
+                        SET nama_personel_penembak = $2, satuan = $3 
+                        WHERE nrp = $1 
+                        RETURNING *;
+                    `;
+                    const resUp = await db.query(updateQuery, [nrp, nama, satuan]);
+                    updated.push(resUp.rows[0]);
+                } else {
+                    const insertQuery = `
+                        INSERT INTO personel_penembak (nrp, nama_personel_penembak, satuan)
+                        VALUES ($1, $2, $3)
+                        RETURNING *;
+                    `;
+                    const resIn = await db.query(insertQuery, [nrp, nama, satuan]);
+                    inserted.push(resIn.rows[0]);
+                }
+            } catch (err) {
+                failed.push({
+                    baris: i + 1,
+                    nrp,
+                    nama,
+                    alasan: err.message
+                });
+            }
+        }
+
+        const totalBerhasil = inserted.length + updated.length;
+        return {
+            code: 200,
+            message: {
+                status: "success",
+                message: `Bulk insert selesai: ${totalBerhasil} data berhasil diproses (${inserted.length} data baru ditambahkan, ${updated.length} data diperbarui${failed.length > 0 ? `, ${failed.length} gagal` : ''}).`,
+                total_processed: items.length,
+                total_inserted: inserted.length,
+                total_updated: updated.length,
+                total_failed: failed.length,
+                inserted,
+                updated,
+                failed
+            }
+        };
+    } catch (error) {
+        console.error("Error bulkTambahPersonel:", error);
+        return { code: 500, message: error.message };
+    }
+};
+
 const hapusPersonel = async (id) => {
     try {
         const query = `DELETE FROM personel_penembak WHERE id_personel_penembak = $1 RETURNING *;`;
@@ -1071,6 +1178,374 @@ const hapusSikapMenembak = async (id) => {
     }
 };
 
+// ==========================================
+// AUTENTIKASI LOGIN & MANAJEMEN AKUN (TABEL USERS POSTGRESQL)
+// ==========================================
+
+const ROLE_LABELS = {
+    operator: "Operator Latihan",
+    administrator: "Administrator",
+    pelatih: "Pelatih / Juri / Pimpinan",
+};
+
+const formatUserRecord = (row) => {
+    if (!row) return null;
+    const role = row.role || "operator";
+    return {
+        id_user: row.id_user,
+        id: row.id_user,
+        username: row.username,
+        nama: row.nama_lengkap,
+        nama_lengkap: row.nama_lengkap,
+        pangkat: row.pangkat || "-",
+        nrp: row.nrp || "-",
+        jabatan: row.jabatan || ROLE_LABELS[role] || "Operator Latihan",
+        satuan: row.satuan || "-",
+        role,
+        roleLabel: ROLE_LABELS[role] || "Operator Latihan",
+        isDefault: Boolean(row.is_default),
+        is_default: Boolean(row.is_default),
+        status: row.status || "Aktif",
+        last_login: row.last_login || null,
+        created_at: row.created_at || null,
+    };
+};
+
+const initUsersTable = async () => {
+    try {
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS users (
+                id_user SERIAL PRIMARY KEY,
+                username VARCHAR(100) UNIQUE NOT NULL,
+                password_hash TEXT NOT NULL,
+                nama_lengkap VARCHAR(200) NOT NULL,
+                pangkat VARCHAR(100) DEFAULT '-',
+                nrp VARCHAR(50) DEFAULT '-',
+                jabatan VARCHAR(150) DEFAULT '-',
+                satuan VARCHAR(150) DEFAULT '-',
+                role VARCHAR(50) NOT NULL DEFAULT 'operator' CHECK (role IN ('operator', 'administrator', 'pelatih')),
+                is_default BOOLEAN DEFAULT FALSE,
+                status VARCHAR(30) DEFAULT 'Aktif',
+                last_login TIMESTAMPTZ,
+                created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+
+        return { code: 200, message: "Tabel users siap di database PostgreSQL" };
+    } catch (error) {
+        console.error("Error initUsersTable:", error);
+        return { code: 500, message: error.message };
+    }
+};
+
+const loginUser = async (username, password) => {
+    try {
+        await initUsersTable();
+
+        const cleanUsername = String(username || "").trim().toLowerCase();
+        const rawPassword = String(password || "");
+
+        if (!cleanUsername || !rawPassword) {
+            return {
+                code: 400,
+                message: {
+                    status: "error",
+                    message: "Username dan kata sandi wajib diisi."
+                }
+            };
+        }
+
+        const query = `
+            SELECT * FROM users
+            WHERE LOWER(username) = LOWER($1)
+            LIMIT 1;
+        `;
+        const result = await db.query(query, [cleanUsername]);
+
+        if (result.rows.length === 0) {
+            return {
+                code: 401,
+                message: {
+                    status: "error",
+                    message: "Username atau kata sandi tidak sesuai. Silakan periksa kembali."
+                }
+            };
+        }
+
+        const userRow = result.rows[0];
+        if ((userRow.status || "Aktif").toLowerCase() !== "aktif") {
+            return {
+                code: 403,
+                message: {
+                    status: "error",
+                    message: "Akun ini sedang dinonaktifkan. Hubungi Administrator."
+                }
+            };
+        }
+
+        const isPasswordValid = await bcrypt.compare(rawPassword, userRow.password_hash);
+        if (!isPasswordValid) {
+            return {
+                code: 401,
+                message: {
+                    status: "error",
+                    message: "Username atau kata sandi tidak sesuai. Silakan periksa kembali."
+                }
+            };
+        }
+
+        // Update waktu login terakhir di database
+        const updateLoginRes = await db.query(
+            `UPDATE users SET last_login = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id_user = $1 RETURNING *`,
+            [userRow.id_user]
+        );
+        const updatedUser = formatUserRecord(updateLoginRes.rows[0] || userRow);
+
+        const secretKey = process.env.SECRET || "sitrak_default_jwt_secret_key_2026";
+        const tokenPayload = {
+            id_user: updatedUser.id_user,
+            username: updatedUser.username,
+            nama: updatedUser.nama_lengkap,
+            nrp: updatedUser.nrp,
+            satuan: updatedUser.satuan,
+            role: updatedUser.role,
+            role_id: updatedUser.role === "administrator" ? 1 : updatedUser.role === "operator" ? 2 : 3,
+        };
+
+        const accessToken = jwt.sign(tokenPayload, secretKey, { expiresIn: "24h" });
+
+        return {
+            code: 200,
+            message: {
+                status: "success",
+                message: "Login berhasil",
+                access_token: accessToken,
+                token: accessToken,
+                user: updatedUser,
+            }
+        };
+    } catch (error) {
+        console.error("Error loginUser:", error);
+        return {
+            code: 500,
+            message: {
+                status: "error",
+                message: "Gangguan server saat memproses autentikasi login"
+            }
+        };
+    }
+};
+
+const getProfileUser = async (id_user) => {
+    try {
+        await initUsersTable();
+        const res = await db.query(`SELECT * FROM users WHERE id_user = $1 LIMIT 1`, [id_user]);
+        if (res.rows.length === 0) {
+            return {
+                code: 404,
+                message: { status: "error", message: "Akun pengguna tidak ditemukan di database" }
+            };
+        }
+        return {
+            code: 200,
+            message: {
+                status: "success",
+                user: formatUserRecord(res.rows[0])
+            }
+        };
+    } catch (error) {
+        console.error("Error getProfileUser:", error);
+        return { code: 500, message: { status: "error", message: error.message } };
+    }
+};
+
+const daftarUsers = async () => {
+    try {
+        await initUsersTable();
+        const res = await db.query(`SELECT * FROM users ORDER BY id_user ASC`);
+        const users = res.rows.map(formatUserRecord);
+        return {
+            code: 200,
+            message: {
+                status: "success",
+                total: users.length,
+                data: users
+            }
+        };
+    } catch (error) {
+        console.error("Error daftarUsers:", error);
+        return { code: 500, message: { status: "error", message: error.message } };
+    }
+};
+
+const tambahUser = async (data) => {
+    try {
+        await initUsersTable();
+        const username = String(data.username || "").trim().toLowerCase();
+        const password = String(data.password || "");
+        const nama_lengkap = String(data.nama_lengkap || data.nama || "").trim();
+        const pangkat = String(data.pangkat || "-").trim() || "-";
+        const nrp = String(data.nrp || "-").trim() || "-";
+        const roleInput = String(data.role || "operator").trim().toLowerCase();
+        const role = ["operator", "administrator", "pelatih"].includes(roleInput) ? roleInput : "operator";
+        const jabatan = String(data.jabatan || ROLE_LABELS[role] || "Operator Latihan").trim();
+        const satuan = String(data.satuan || "Satuan SITRAK").trim() || "Satuan SITRAK";
+
+        if (!username || !password || !nama_lengkap) {
+            return {
+                code: 400,
+                message: {
+                    status: "error",
+                    message: "Username, password, dan nama lengkap wajib diisi."
+                }
+            };
+        }
+
+        if (password.length < 4) {
+            return {
+                code: 400,
+                message: {
+                    status: "error",
+                    message: "Password minimal terdiri dari 4 karakter."
+                }
+            };
+        }
+
+        const existing = await db.query(
+            `SELECT id_user FROM users WHERE LOWER(username) = LOWER($1)`,
+            [username]
+        );
+        if (existing.rows.length > 0) {
+            return {
+                code: 409,
+                message: {
+                    status: "error",
+                    message: `Username "${username}" sudah terdaftar di database.`
+                }
+            };
+        }
+
+        const passwordHash = await bcrypt.hash(password, 10);
+        const insertRes = await db.query(
+            `INSERT INTO users (
+                username,
+                password_hash,
+                nama_lengkap,
+                pangkat,
+                nrp,
+                jabatan,
+                satuan,
+                role,
+                is_default,
+                status
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, FALSE, 'Aktif')
+            RETURNING *`,
+            [username, passwordHash, nama_lengkap, pangkat, nrp, jabatan, satuan, role]
+        );
+
+        return {
+            code: 201,
+            message: {
+                status: "success",
+                message: "Akun pengguna berhasil disimpan ke database PostgreSQL",
+                user: formatUserRecord(insertRes.rows[0])
+            }
+        };
+    } catch (error) {
+        console.error("Error tambahUser:", error);
+        return { code: 500, message: { status: "error", message: error.message } };
+    }
+};
+
+const updateUser = async (id_user, data) => {
+    try {
+        await initUsersTable();
+        const check = await db.query(`SELECT * FROM users WHERE id_user = $1`, [id_user]);
+        if (check.rows.length === 0) {
+            return {
+                code: 404,
+                message: { status: "error", message: "Akun pengguna tidak ditemukan" }
+            };
+        }
+
+        const current = check.rows[0];
+        const nama_lengkap = String(data.nama_lengkap || data.nama || current.nama_lengkap).trim();
+        const pangkat = String(data.pangkat !== undefined ? data.pangkat : current.pangkat).trim();
+        const nrp = String(data.nrp !== undefined ? data.nrp : current.nrp).trim();
+        const satuan = String(data.satuan !== undefined ? data.satuan : current.satuan).trim();
+        const roleInput = String(data.role || current.role).trim().toLowerCase();
+        const role = ["operator", "administrator", "pelatih"].includes(roleInput) ? roleInput : current.role;
+        const jabatan = String(data.jabatan || ROLE_LABELS[role] || current.jabatan).trim();
+        const status = String(data.status || current.status || "Aktif").trim();
+
+        let passwordHash = current.password_hash;
+        if (data.password && String(data.password).trim().length >= 4) {
+            passwordHash = await bcrypt.hash(String(data.password).trim(), 10);
+        }
+
+        const res = await db.query(
+            `UPDATE users
+             SET nama_lengkap = $1,
+                 pangkat = $2,
+                 nrp = $3,
+                 jabatan = $4,
+                 satuan = $5,
+                 role = $6,
+                 status = $7,
+                 password_hash = $8,
+                 updated_at = CURRENT_TIMESTAMP
+             WHERE id_user = $9
+             RETURNING *`,
+            [nama_lengkap, pangkat, nrp, jabatan, satuan, role, status, passwordHash, id_user]
+        );
+
+        return {
+            code: 200,
+            message: {
+                status: "success",
+                message: "Data akun berhasil diperbarui",
+                user: formatUserRecord(res.rows[0])
+            }
+        };
+    } catch (error) {
+        console.error("Error updateUser:", error);
+        return { code: 500, message: { status: "error", message: error.message } };
+    }
+};
+
+const hapusUser = async (id_user) => {
+    try {
+        await initUsersTable();
+        const check = await db.query(`SELECT * FROM users WHERE id_user = $1`, [id_user]);
+        if (check.rows.length === 0) {
+            return {
+                code: 404,
+                message: { status: "error", message: "Akun pengguna tidak ditemukan" }
+            };
+        }
+        if (check.rows[0].is_default) {
+            return {
+                code: 400,
+                message: { status: "error", message: "Akun utama bawaan sistem tidak dapat dihapus." }
+            };
+        }
+
+        const delRes = await db.query(`DELETE FROM users WHERE id_user = $1 RETURNING *`, [id_user]);
+        return {
+            code: 200,
+            message: {
+                status: "success",
+                message: "Akun pengguna berhasil dihapus dari database",
+                deleted: formatUserRecord(delRes.rows[0])
+            }
+        };
+    } catch (error) {
+        console.error("Error hapusUser:", error);
+        return { code: 500, message: { status: "error", message: error.message } };
+    }
+};
+
 module.exports = {
     jenisSenjata,
     modeTembakan,
@@ -1090,6 +1565,7 @@ module.exports = {
     simpanDeteksiTembakan,
     // Master data methods
     tambahPersonel,
+    bulkTambahPersonel,
     hapusPersonel,
     tambahSenjata,
     hapusSenjata,
@@ -1100,5 +1576,13 @@ module.exports = {
     tambahModeTembakan,
     hapusModeTembakan,
     tambahSikapMenembak,
-    hapusSikapMenembak
+    hapusSikapMenembak,
+    // Auth & Users methods
+    initUsersTable,
+    loginUser,
+    getProfileUser,
+    daftarUsers,
+    tambahUser,
+    updateUser,
+    hapusUser
 }
