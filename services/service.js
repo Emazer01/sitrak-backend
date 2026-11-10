@@ -373,6 +373,10 @@ const daftarSesi = async (page = 1, limit = 10, search = '', status = '') => {
             s.created_at,
             s.id_senjata,
             sen.model_senjata,
+            sen.kaliber,
+            sen.pabrikan,
+            sen.id_jenis_senjata,
+            js.nama_jenis_senjata,
             s.id_mode_tembakan,
             mt.nama_mode_tembakan,
             s.id_sikap_menembak,
@@ -382,6 +386,7 @@ const daftarSesi = async (page = 1, limit = 10, search = '', status = '') => {
         FROM 
             sesi s
             LEFT JOIN senjata sen ON s.id_senjata = sen.id_senjata
+            LEFT JOIN jenis_senjata js ON sen.id_jenis_senjata = js.id_jenis_senjata
             LEFT JOIN mode_tembakan mt ON s.id_mode_tembakan = mt.id_mode_tembakan
             LEFT JOIN sikap_menembak sm ON s.id_sikap_menembak = sm.id_sikap_menembak
             LEFT JOIN tipe_target tt ON s.id_tipe_target = tt.id_tipe_target`
@@ -451,6 +456,8 @@ const detailSesi = async (id_sesi) => {
             sen.model_senjata,
             sen.kaliber,
             sen.pabrikan,
+            sen.id_jenis_senjata,
+            js.nama_jenis_senjata,
             s.id_mode_tembakan,
             mt.nama_mode_tembakan,
             s.id_sikap_menembak,
@@ -460,6 +467,7 @@ const detailSesi = async (id_sesi) => {
         FROM 
             sesi s
             LEFT JOIN senjata sen ON s.id_senjata = sen.id_senjata
+            LEFT JOIN jenis_senjata js ON sen.id_jenis_senjata = js.id_jenis_senjata
             LEFT JOIN mode_tembakan mt ON s.id_mode_tembakan = mt.id_mode_tembakan
             LEFT JOIN sikap_menembak sm ON s.id_sikap_menembak = sm.id_sikap_menembak
             LEFT JOIN tipe_target tt ON s.id_tipe_target = tt.id_tipe_target
